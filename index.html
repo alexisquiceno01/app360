@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>PNN Colombia 360° Player</title>
+
+    <!-- Carga de A-Frame -->
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+
+    <style>
+        /* --- ESTILOS GENERALES --- */
+        :root {
+            --primary: #4CAF50;
+            --accent: #8BC34A;
+            --dark-bg: #121212;
+            --glass-bg: rgba(20, 20, 20, 0.85);
+            --border: rgba(255, 255, 255, 0.15);
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #000;
+            color: white;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Ocultar el botón VR por defecto de A-Frame */
+        .a-enter-vr {
+            display: none !important;
+        }
+
+        /* --- PANTALLA DE BIENVENIDA --- */
+        #welcome-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at center, #2a2a2a 0%, #000 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            text-align: center;
+            padding: 20px;
+            transition: opacity 0.5s ease;
+        }
+
+        .welcome-content h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            letter-spacing: 2px;
+            text-shadow: 0 0 20px rgba(76, 175, 80, 0.6);
+        }
+
+        .start-btn {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            color: white;
+            border: none;
+            padding: 18px 60px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(76, 175, 80, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 30px;
+        }
+
+        .start-btn:active {
+            transform: scale(0.95);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.2);
+        }
+
+        /* --- INTERFAZ DE USUARIO (UI) --- */
+        #app-ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 15px;
+            box-sizing: border-box;
+            transition: opacity 0.3s ease;
+        }
+
+        #app-ui.hidden {
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+
+        /* Header */
+        .header {
+            pointer-events: auto;
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 12px 20px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            display: inline-block;
+            align-self: flex-start;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Panel Inferior */
+        .bottom-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            pointer-events: none;
+        }
+
+        /* Barra de Controles */
+        .controls-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            pointer-events: auto;
+            padding-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        /* Timeline Container */
+        .timeline-container {
+            width: 100%;
+            pointer-events: auto;
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 12px 15px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .timeline-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 11px;
+            color: #aaa;
+        }
+
+        .timeline-bar {
+            position: relative;
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            cursor: pointer;
+            overflow: hidden;
+        }
+
+        .timeline-progress {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            border-radius: 3px;
+            transition: width 0.1s linear;
+        }
+
+        .timeline-handle {
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 14px;
+            height: 14px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s;
+        }
+
+        .timeline-bar:active .timeline-handle {
+            transform: translate(-50%, -50%) scale(1.2);
+        }
+
+        .btn-control {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255, 255, 255, 0.9);
+            color: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-control:active {
+            transform: scale(0.9);
+        }
+
+        .btn-vr-mode {
+            background: #2196F3;
+            color: white;
+        }
+
+        .btn-settings {
+            background: #333;
+            color: white;
+        }
+
+        /* Galería de Videos */
+        .gallery-scroller {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding: 5px;
+            pointer-events: auto;
+            scroll-behavior: smooth;
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .gallery-scroller::-webkit-scrollbar {
+            display: none;
+        }
+
+        .video-card {
+            min-width: 140px;
+            height: 80px;
+            background: #222;
+            border-radius: 10px;
+            position: relative;
+            cursor: pointer;
+            border: 2px solid transparent;
+            overflow: hidden;
+            opacity: 0.6;
+            transition: all 0.3s;
+        }
+
+        .video-card.active {
+            border-color: var(--primary);
+            opacity: 1;
+            transform: scale(1.05);
+        }
+
+        .video-thumb {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            background: linear-gradient(45deg, #111, #333);
+        }
+
+        .video-title {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            font-size: 10px;
+            padding: 4px;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        /* --- PANEL DE AJUSTES VR --- */
+        #settings-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .settings-box {
+            background: #1e1e1e;
+            padding: 25px;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 350px;
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .slider-container {
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .slider-label {
+            font-size: 12px;
+            color: #aaa;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        input[type=range] {
+            width: 100%;
+            appearance: none;
+            -webkit-appearance: none;
+            background: #444;
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        /* Notificaciones */
+        #toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 59, 48, 0.9);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-size: 14px;
+            z-index: 500;
+            display: none;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+            max-width: 80%;
+            text-align: center;
+        }
+
+        #protocol-warning {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #ff9800;
+            color: black;
+            text-align: center;
+            padding: 10px;
+            font-weight: bold;
+            z-index: 10000;
+            display: none;
+            font-size: 12px;
+        }
+
+        /* --- MODO PANTALLA DIVIDIDA VR --- */
+        .split-screen-mode .a-canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* Contenedor para pantalla dividida */
+        #vr-split-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            z-index: 50;
+            background: #000;
+        }
+
+        #vr-split-container.active {
+            display: block;
+        }
+
+        /* Dos viewports lado a lado */
+        .vr-eye {
+            position: absolute;
+            top: 0;
+            width: 50%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .vr-eye-left {
+            left: 0;
+        }
+
+        .vr-eye-right {
+            right: 0;
+        }
+
+        /* Canvas duplicado para cada ojo */
+        .vr-eye canvas {
+            width: 200% !important;
+            height: 100% !important;
+        }
+
+        .vr-eye-left canvas {
+            margin-left: 0;
+        }
+
+        .vr-eye-right canvas {
+            margin-left: -100%;
+        }
+
+        /* Botón para salir del modo VR */
+        #exit-vr-btn {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 300;
+            background: rgba(255, 255, 255, 0.9);
+            color: #000;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        #exit-vr-btn.active {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Aviso de protocolo (si no se usa servidor local) -->
+    <div id="protocol-warning">
+        ⚠️ Estás ejecutando esto desde un archivo local (file://). Los videos no cargarán por seguridad.
+        <br>Por favor, usa <b>Live Server</b> en VS Code.
+    </div>
+
+    <!-- Notificación Flotante -->
+    <div id="toast">Error</div>
+
+    <!-- Pantalla de Inicio -->
+    <div id="welcome-screen">
+        <div class="welcome-content">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="white" style="margin-bottom:20px; opacity:0.8">
+                <path
+                    d="M22 9L22 15C22 17.2091 20.2091 19 18 19L6 19C3.79086 19 2 17.2091 2 15L2 9C2 6.79086 3.79086 5 6 5L18 5C20.2091 5 22 6.79086 22 9Z"
+                    stroke="white" stroke-width="2" fill="none" />
+                <circle cx="7.5" cy="12" r="1.5" fill="white" />
+                <circle cx="16.5" cy="12" r="1.5" fill="white" />
+                <path d="M12 15L12 9" stroke="white" stroke-width="2" />
+            </svg>
+            <h1>EXPERIENCIA VR</h1>
+            <p style="color: #bbb; max-width: 300px; line-height: 1.5;">Para la mejor experiencia, activa el sonido y
+                limpia la pantalla de tu móvil.</p>
+            <button class="start-btn" onclick="iniciarApp()">ENTRAR</button>
+        </div>
+    </div>
+
+    <!-- Panel de Ajustes (Calibración) -->
+    <div id="settings-overlay">
+        <div class="settings-box">
+            <h3>Calibración de Visión</h3>
+            <p style="font-size: 12px; color: #888; margin-bottom: 20px;">Usa estos controles si ves la imagen doble o
+                desalineada dentro de las gafas.</p>
+
+            <div class="slider-container">
+                <div class="slider-label"><span>Altura Vertical</span> <span id="val-y">0</span></div>
+                <input type="range" min="-1" max="1" step="0.05" value="0" oninput="ajustarCamara('y', this.value)">
+            </div>
+
+            <div class="slider-container">
+                <div class="slider-label"><span>Desplazamiento Horizontal</span> <span id="val-x">0</span></div>
+                <input type="range" min="-0.5" max="0.5" step="0.05" value="0" oninput="ajustarCamara('x', this.value)">
+            </div>
+
+            <button class="start-btn" style="padding: 10px 30px; font-size: 14px; width: 100%; margin-top: 10px;"
+                onclick="toggleSettings(false)">GUARDAR Y CERRAR</button>
+        </div>
+    </div>
+
+    <!-- Interfaz Principal -->
+    <div id="app-ui">
+        <div class="header">
+            <h2 style="margin:0; font-size:16px; font-weight:600;">PNN Colombia 360°</h2>
+            <div id="video-indicator" style="font-size: 11px; color: var(--primary); margin-top:2px;">Listo para
+                reproducir</div>
+        </div>
+
+        <div class="bottom-panel">
+            <!-- Controles -->
+            <div class="controls-bar">
+                <!-- Ajustes -->
+                <button class="btn-control btn-settings" onclick="toggleSettings(true)" title="Ajustes de Visión">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                        </path>
+                    </svg>
+                </button>
+
+                <!-- Retroceder 10s -->
+                <button class="btn-control" onclick="skipTime(-10)" title="Retroceder 10s">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
+                        <text x="12" y="16" text-anchor="middle" font-size="7" fill="white" font-weight="bold">10</text>
+                    </svg>
+                </button>
+
+                <!-- Play / Pause -->
+                <button class="btn-control" id="btn-play" onclick="togglePlay()" style="width: 70px; height: 70px;">
+                    <svg id="icon-play" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M8 5v14l11-7z" />
+                    </svg>
+                    <svg id="icon-pause" width="32" height="32" viewBox="0 0 24 24" fill="currentColor"
+                        style="display:none">
+                        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                    </svg>
+                </button>
+
+                <!-- Modo VR (Pantalla Dividida) -->
+                <button class="btn-control btn-vr-mode" onclick="activarModoVR()" title="Modo Gafas (Split Screen)">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M6 18h12a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2z" />
+                        <path d="M12 12v6" />
+                        <line x1="2" y1="9" x2="6" y2="12" />
+                        <line x1="22" y1="9" x2="18" y2="12" />
+                    </svg>
+                </button>
+
+                <!-- Adelantar 10s -->
+                <button class="btn-control" onclick="skipTime(10)" title="Adelantar 10s">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z" />
+                        <text x="12" y="16" text-anchor="middle" font-size="7" fill="white" font-weight="bold">10</text>
+                    </svg>
+                </button>
+
+                <!-- Modo VR (Pantalla Dividida) -->
+                <button class="btn-control btn-vr-mode" onclick="activarModoVR()" title="Modo Gafas (Split Screen)">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M6 18h12a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2z" />
+                        <path d="M12 12v6" />
+                        <line x1="2" y1="9" x2="6" y2="12" />
+                        <line x1="22" y1="9" x2="18" y2="12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Timeline / Barra de Progreso -->
+            <div class="timeline-container">
+                <div class="timeline-info">
+                    <span id="current-time">0:00</span>
+                    <span id="duration-time">0:00</span>
+                </div>
+                <div class="timeline-bar" onclick="seekVideo(event)">
+                    <div class="timeline-progress" id="timeline-progress"></div>
+                    <div class="timeline-handle" id="timeline-handle"></div>
+                </div>
+            </div>
+
+            <!-- Carrusel de Videos -->
+            <div class="gallery-scroller">
+                <!-- Video 1 -->
+                <div class="video-card active" onclick="cambiarVideo('video1', 'Farallones', this)">
+                    <div class="video-thumb"></div>
+                    <div class="video-title">1. Farallones</div>
+                </div>
+                <!-- Video 2 -->
+                <div class="video-card" onclick="cambiarVideo('video2', 'Amacayacu', this)">
+                    <div class="video-thumb" style="background: linear-gradient(45deg, #003300, #225522);"></div>
+                    <div class="video-title">2. Amacayacu</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Botón para salir del modo VR -->
+    <button id="exit-vr-btn" onclick="salirModoVR()">SALIR DE VR</button>
+
+    <!-- ESCENA A-FRAME VR -->
+    <a-scene loading-screen="dotsColor: white; backgroundColor: black"
+        renderer="antialias: true; colorManagement: true;" vr-mode-ui="enabled: true"
+        device-orientation-permission-ui="enabled: false">
+
+        <a-assets timeout="10000">
+            <!-- Videos con nombres correctos URL-encoded -->
+            <video id="video1" src="1.%20PNN%20FARALLONES%20AMBIX-008.mp4" preload="auto" loop playsinline
+                webkit-playsinline muted></video>
+            <video id="video2" src="2.%20PNN%20AMACAYACU%20AMBIX-006.mp4" preload="auto" loop playsinline
+                webkit-playsinline muted></video>
+        </a-assets>
+
+        <!-- Esfera de Video 360 -->
+        <a-videosphere id="sphere" src="#video1" rotation="0 -90 0"></a-videosphere>
+
+        <!-- Rig de Cámara (Controlador de posición para ajustes) -->
+        <a-entity id="camera-rig" position="0 1.6 0">
+            <a-camera id="main-camera" look-controls="magicWindowTrackingEnabled: true" position="0 0 0"
+                stereocam="eye: left; separation: 0.064">
+            </a-camera>
+        </a-entity>
+    </a-scene>
+
+    <script>
+        // --- VERIFICACIÓN DE SERVIDOR LOCAL ---
+        if (window.location.protocol === 'file:') {
+            document.getElementById('protocol-warning').style.display = 'block';
+            alert("AVISO: La aplicación no funcionará correctamente si abres el archivo directamente.\n\nPor favor usa un Servidor Local (como Live Server en VS Code).");
+        }
+
+        // Variables Globales
+        const scene = document.querySelector('a-scene');
+        const sphere = document.getElementById('sphere');
+        const appUi = document.getElementById('app-ui');
+        const welcome = document.getElementById('welcome-screen');
+        const toast = document.getElementById('toast');
+        const indicator = document.getElementById('video-indicator');
+
+        let currentVideoId = 'video1';
+        let isPlaying = false;
+
+        // Ajustes de Cámara
+        let camX = 0;
+        let camY = 1.6;
+
+        // --- INICIALIZACIÓN ---
+        async function iniciarApp() {
+            welcome.style.opacity = '0';
+            setTimeout(() => { welcome.style.display = 'none'; }, 500);
+            appUi.style.display = 'flex';
+
+            const v = document.getElementById(currentVideoId);
+            try {
+                // Forzar carga antes de play
+                v.load();
+                // Iniciar muted para compatibilidad con autoplay
+                v.muted = true;
+                await v.play();
+                // Intentar activar sonido después de que empiece
+                v.muted = false;
+                isPlaying = true;
+                actualizarIconos();
+                indicator.innerText = "Reproduciendo: Farallones";
+            } catch (err) {
+                console.warn("Autoplay bloqueado o error de carga:", err);
+                indicator.innerText = "Pulsa Play para iniciar";
+                // No mostrar error toast inmediatamente si es solo autoplay policy
+                if (err.name !== 'NotAllowedError') {
+                    mostrarToast("Error: " + err.message);
+                }
+                isPlaying = false;
+                actualizarIconos();
+            }
+        }
+
+        // --- CONTROL DE VIDEO ---
+        function togglePlay() {
+            const v = document.getElementById(currentVideoId);
+            if (v.paused) {
+                // Asegurar que el video tenga sonido al reproducir manualmente
+                v.muted = false;
+                v.play().then(() => {
+                    isPlaying = true;
+                    actualizarIconos();
+                }).catch(e => mostrarToast("Error al reproducir: " + e.message));
+            } else {
+                v.pause();
+                isPlaying = false;
+                actualizarIconos();
+            }
+        }
+
+        function actualizarIconos() {
+            document.getElementById('icon-play').style.display = isPlaying ? 'none' : 'block';
+            document.getElementById('icon-pause').style.display = isPlaying ? 'block' : 'none';
+        }
+
+        // --- FUNCIONES DE TIMELINE ---
+        function formatTime(seconds) {
+            if (isNaN(seconds)) return '0:00';
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function updateTimeline() {
+            const v = document.getElementById(currentVideoId);
+            if (!v) return;
+
+            const currentTime = v.currentTime;
+            const duration = v.duration;
+
+            if (!isNaN(duration) && duration > 0) {
+                const progress = (currentTime / duration) * 100;
+                document.getElementById('timeline-progress').style.width = progress + '%';
+                document.getElementById('timeline-handle').style.left = progress + '%';
+                document.getElementById('current-time').innerText = formatTime(currentTime);
+                document.getElementById('duration-time').innerText = formatTime(duration);
+            }
+        }
+
+        function seekVideo(event) {
+            const v = document.getElementById(currentVideoId);
+            const timeline = event.currentTarget;
+            const rect = timeline.getBoundingClientRect();
+            const clickX = event.clientX - rect.left;
+            const percentage = clickX / rect.width;
+            const newTime = percentage * v.duration;
+
+            if (!isNaN(newTime)) {
+                v.currentTime = newTime;
+                updateTimeline();
+            }
+        }
+
+        function skipTime(seconds) {
+            const v = document.getElementById(currentVideoId);
+            v.currentTime = Math.max(0, Math.min(v.duration, v.currentTime + seconds));
+            updateTimeline();
+        }
+
+        function cambiarVideo(newId, title, cardElement) {
+            if (currentVideoId === newId) return;
+
+            document.querySelectorAll('.video-card').forEach(c => c.classList.remove('active'));
+            cardElement.classList.add('active');
+            indicator.innerText = "Cargando: " + title + "...";
+
+            const oldV = document.getElementById(currentVideoId);
+            const wasPlaying = !oldV.paused;
+            oldV.pause();
+            oldV.currentTime = 0;
+
+            currentVideoId = newId;
+            sphere.setAttribute('src', '#' + newId);
+
+            const newV = document.getElementById(newId);
+            newV.load(); // Forzar recarga del source
+
+            if (wasPlaying) {
+                // Mantener el estado de reproducción
+                newV.muted = false;
+                newV.play().then(() => {
+                    isPlaying = true;
+                    actualizarIconos();
+                    indicator.innerText = "Reproduciendo: " + title;
+                }).catch(err => {
+                    console.error(err);
+                    isPlaying = false;
+                    actualizarIconos();
+                    mostrarToast("Error cargando video: " + err.message);
+                });
+            } else {
+                indicator.innerText = "Listo: " + title;
+            }
+        }
+
+        // --- MODO VR ---
+        function activarModoVR() {
+            if (scene.is('vr-mode')) {
+                scene.exitVR();
+            } else {
+                // Verificar orientación del dispositivo
+                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    DeviceOrientationEvent.requestPermission()
+                        .then(response => {
+                            if (response === 'granted') {
+                                scene.enterVR();
+                            } else {
+                                mostrarToast("Se necesita permiso de orientación para VR");
+                            }
+                        })
+                        .catch(err => {
+                            console.error(err);
+                            scene.enterVR(); // Intentar de todos modos
+                        });
+                } else {
+                    scene.enterVR();
+                }
+            }
+        }
+
+        function salirModoVR() {
+            if (scene.is('vr-mode')) {
+                scene.exitVR();
+            }
+        }
+
+        scene.addEventListener('enter-vr', () => {
+            appUi.classList.add('hidden');
+            document.getElementById('exit-vr-btn').classList.add('active');
+
+            // Forzar pantalla completa en móviles
+            const canvas = document.querySelector('canvas');
+            if (canvas && canvas.requestFullscreen) {
+                canvas.requestFullscreen().catch(err => console.log("Fullscreen error:", err));
+            } else if (canvas && canvas.webkitRequestFullscreen) {
+                canvas.webkitRequestFullscreen();
+            }
+
+            mostrarToast("Modo VR Activo - Pantalla Dividida");
+
+            // Asegurar que el video sigue reproduciéndose
+            const v = document.getElementById(currentVideoId);
+            if (v.paused && isPlaying) {
+                v.play().catch(e => console.log("Play error:", e));
+            }
+        });
+
+        scene.addEventListener('exit-vr', () => {
+            appUi.classList.remove('hidden');
+            document.getElementById('exit-vr-btn').classList.remove('active');
+
+            // Salir de pantalla completa
+            if (document.exitFullscreen) {
+                document.exitFullscreen().catch(err => console.log("Exit fullscreen error:", err));
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            }
+        });
+
+        // --- AJUSTES ---
+        function toggleSettings(show) {
+            document.getElementById('settings-overlay').style.display = show ? 'flex' : 'none';
+        }
+
+        function ajustarCamara(eje, valor) {
+            const rig = document.getElementById('camera-rig');
+            const val = parseFloat(valor);
+            if (eje === 'x') {
+                camX = val;
+                document.getElementById('val-x').innerText = val.toFixed(2);
+            } else if (eje === 'y') {
+                camY = 1.6 + val;
+                document.getElementById('val-y').innerText = val.toFixed(2);
+            }
+            rig.setAttribute('position', `${camX} ${camY} 0`);
+        }
+
+        // --- UTILIDADES ---
+        function mostrarToast(msg) {
+            toast.innerText = msg;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 4000);
+        }
+
+        const videos = document.querySelectorAll('video');
+        videos.forEach(v => {
+            v.addEventListener('error', (e) => {
+                const err = v.error;
+                let msg = "Error desconocido";
+                if (err) {
+                    if (err.code === 3) msg = "Error de decodificación (Video corrupto o formato no soportado)";
+                    if (err.code === 4) msg = "Formato no soportado o archivo no encontrado (SRC_NOT_SUPPORTED)";
+                }
+                console.error("Error Video:", v.src, e);
+                mostrarToast(msg + ". Verifica el nombre del archivo.");
+            });
+
+            // Actualizar timeline mientras se reproduce
+            v.addEventListener('timeupdate', updateTimeline);
+
+            // Actualizar duración cuando se carga el metadata
+            v.addEventListener('loadedmetadata', updateTimeline);
+        });
+    </script>
+</body>
+
+</html>
